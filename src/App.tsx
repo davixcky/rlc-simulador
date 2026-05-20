@@ -4,6 +4,7 @@ import { ControlPanel } from "./components/ControlPanel";
 import { DerivedStrip } from "./components/DerivedStrip";
 import { ChargePlot, CurrentPlot } from "./components/Plots";
 import { VideoExport } from "./components/VideoExport";
+import { WelcomeModal, WelcomeReplayButton } from "./components/WelcomeModal";
 import {
   derive,
   sample,
@@ -23,6 +24,7 @@ function App() {
   // Permitir al usuario fijar la ventana de tiempo manualmente, o calcular automáticamente.
   const [autoT, setAutoT] = useState(true);
   const [tMaxOverride, setTMaxOverride] = useState<number>(0.5);
+  const [forceWelcome, setForceWelcome] = useState(false);
 
   const derived = useMemo(() => derive(params), [params]);
   const tMax = autoT ? suggestedTMax(derived) : tMaxOverride;
@@ -30,6 +32,10 @@ function App() {
 
   return (
     <div className="min-h-screen pb-12">
+      <WelcomeModal forceShow={forceWelcome} onClose={() => setForceWelcome(false)} />
+      <div className="max-w-7xl mx-auto px-8 pt-4 flex justify-end">
+        <WelcomeReplayButton onClick={() => setForceWelcome(true)} />
+      </div>
       <Header />
 
       <main className="max-w-7xl mx-auto px-8 grid gap-5 lg:grid-cols-[360px_1fr]">

@@ -52,6 +52,7 @@ interface RenderContext {
   iRange: [number, number];
   tMax: number;
   opts: VideoOpts;
+  logo: HTMLImageElement | null;
 }
 
 const BG = "#0c0a09";
@@ -61,7 +62,37 @@ const DIM = "#78716c";
 const GRID = "#3f3f46";
 const ROSE = "#fb7185";
 
-function buildContext(params: RlcParams, opts: VideoOpts): RenderContext {
+const INTEGRANTES = [
+  "Camilo López Ramos",
+  "Juan Fernando Pertuz Pabón",
+  "Santiago Henao Arteaga",
+  "David Orozco",
+];
+
+let logoCache: HTMLImageElement | null = null;
+let logoInFlight: Promise<HTMLImageElement | null> | null = null;
+
+function loadLogo(): Promise<HTMLImageElement | null> {
+  if (logoCache) return Promise.resolve(logoCache);
+  if (logoInFlight) return logoInFlight;
+  logoInFlight = new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      logoCache = img;
+      resolve(img);
+    };
+    img.onerror = () => resolve(null);
+    img.src = "/cuc-logo.png";
+  });
+  return logoInFlight;
+}
+
+function buildContext(
+  params: RlcParams,
+  opts: VideoOpts,
+  logo: HTMLImageElement | null
+): RenderContext {
   const der = derive(params);
   const tMax =
     opts.simulatedSeconds > 0
@@ -96,7 +127,7 @@ function buildContext(params: RlcParams, opts: VideoOpts): RenderContext {
     height: plotH,
   };
 
-  return { params, derived: der, samples, qBox, iBox, qRange, iRange, tMax, opts };
+  return { params, derived: der, samples, qBox, iBox, qRange, iRange, tMax, opts, logo };
 }
 
 function suggestedSimWindow(d: Derived): number {
@@ -195,6 +226,50 @@ export function renderFrame(
     60,
     opts.height - 50
   );
+
+  // Logo CUC + integrantes (esquina superior derecha)
+  drawCredits(ctx, rc);
+}
+
+function drawCredits(ctx: CanvasRenderingContext2D, rc: RenderContext) {
+  const { opts, logo } = rc;
+  const padX = 60;
+  const topY = 50;
+  const blockRight = opts.width - padX;
+
+  let logoBottom = topY;
+
+  if (logo) {
+    // Mantener proporción del logo, alto fijo
+    const logoH = 90;
+    const logoW = (logo.naturalWidth / logo.naturalHeight) * logoH;
+    ctx.drawImage(logo, blockRight - logoW, topY, logoW, logoH);
+    logoBottom = topY + logoH;
+  } else {
+    // Fallback textual si la imagen no cargó
+    ctx.fillStyle = "#9c1c1c";
+    ctx.font = "bold 40px 'Plus Jakarta Sans', sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("Universidad de la Costa", blockRight, topY + 32);
+    logoBottom = topY + 40;
+    ctx.textAlign = "left";
+  }
+
+  // Integrantes debajo del logo
+  ctx.fillStyle = MUTED;
+  ctx.font = "18px 'JetBrains Mono', monospace";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "top";
+  const lineHeight = 22;
+  const labelY = logoBottom + 14;
+  ctx.fillStyle = DIM;
+  ctx.fillText("INTEGRANTES", blockRight, labelY);
+  ctx.fillStyle = MUTED;
+  INTEGRANTES.forEach((name, i) => {
+    ctx.fillText(name, blockRight, labelY + 22 + i * lineHeight);
+  });
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
 }
 
 function drawRadialGlow(
@@ -331,7 +406,8 @@ export async function recordVideo(
   canvas.width = opts.width;
   canvas.height = opts.height;
   const ctx = canvas.getContext("2d")!;
-  const rc = buildContext(params, opts);
+  const logo = await loadLogo();
+  const rc = buildContext(params, opts, logo);
 
   // Pre-dibujar el primer frame para que MediaRecorder no capture un canvas vacío.
   renderFrame(ctx, rc, 0);
